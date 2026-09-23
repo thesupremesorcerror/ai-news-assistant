@@ -1,0 +1,33 @@
+# --- Secrets (NEVER commit these) ---
+.env
+*.env.local
+
+# --- Python (service-a-ai-engine) ---
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+
+# --- Java / Maven (service-b-core-api) ---
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# --- IDE files ---
+.idea/
+.vscode/
+*.iml
+.settings/
+.project
+.classpath
+
+# --- OS junk ---
+.DS_Store
+Thumbs.db
+
+# --- Docker ---
+*.log

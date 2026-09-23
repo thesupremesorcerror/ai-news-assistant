@@ -1,0 +1,28 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: core-api
+  data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://localhost:27017/news_assistant}
+
+# Custom JWT settings, bound in app.security.JwtUtil via @Value
+jwt:
+  secret: ${JWT_SECRET:CHANGE_ME_super_secret_key_min_32_bytes_long_please}
+  expiration-ms: ${JWT_EXPIRATION_MS:86400000}   # 24 hours
+
+# Downstream AI Engine (Service A) — used from Phase 4 onward
+ai-engine:
+  base-url: ${AI_ENGINE_BASE_URL:http://localhost:8000}
+
+# Razorpay — used from Phase 4 onward
+razorpay:
+  key-id: ${RAZORPAY_KEY_ID:}
+  key-secret: ${RAZORPAY_KEY_SECRET:}
+
+logging:
+  level:
+    com.newsassistant.coreapi: INFO
+    org.springframework.security: INFO
