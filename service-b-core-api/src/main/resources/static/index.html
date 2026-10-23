@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI News Assistant</title>
+<style>
+:root{--navy:#21295c;--teal:#1c7293;--bg:#f6f8fb;--ink:#1b1f3b;--muted:#4a5572;--line:#dde3ee}
+*{box-sizing:border-box}
+body{margin:0;font-family:Calibri,"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;display:flex;flex-direction:column}
+header{background:var(--navy);color:#fff;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+header h1{font-size:18px;margin:0}
+header small{display:block;font-weight:400;font-size:12px;opacity:.75}
+#userbox{display:none;align-items:center;gap:12px;font-size:13px}
+button{font:inherit;cursor:pointer;border:0;border-radius:8px;padding:10px 18px;font-weight:600}
+.primary{background:var(--teal);color:#fff}
+.ghost{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.5);padding:6px 12px}
+.secondary{background:#fff;color:var(--navy);border:1px solid var(--line)}
+button:disabled{opacity:.6;cursor:default}
+main{flex:1;width:100%;max-width:820px;margin:0 auto;padding:24px 16px;display:flex;flex-direction:column}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:28px;max-width:420px;margin:40px auto}
+.card h2{margin:0 0 4px;color:var(--navy)}
+.card p{margin:0 0 18px;color:var(--muted);font-size:14px}
+label{display:block;font-size:13px;font-weight:600;margin:12px 0 4px}
+input[type=email],input[type=password],textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font:inherit}
+.row{display:flex;gap:10px;margin-top:18px}
+.row button{flex:1}
+#msg{margin-top:14px;font-size:13px;color:#b3261e;min-height:18px}
+#chat{display:none;flex:1;flex-direction:column}
+#log{flex:1;display:flex;flex-direction:column;gap:14px;padding-bottom:16px}
+.bubble{max-width:85%;padding:12px 16px;border-radius:14px;line-height:1.5;font-size:15px;white-space:pre-wrap}
+.user{align-self:flex-end;background:var(--navy);color:#fff;border-bottom-right-radius:4px}
+.bot{align-self:flex-start;background:#fff;border:1px solid var(--line);border-bottom-left-radius:4px}
+.err{align-self:flex-start;background:#fdecea;border:1px solid #f5c2be;color:#7a1c14}
+.src{margin-top:10px;font-size:12px;color:var(--muted)}
+.src a{color:var(--teal);word-break:break-all}
+details{margin-top:8px;font-size:12px;color:var(--muted)}
+details summary{cursor:pointer;color:var(--teal);font-weight:600}
+.chunk{margin-top:6px;padding:8px 10px;background:var(--bg);border-radius:8px}
+form{display:flex;gap:10px;position:sticky;bottom:0;background:var(--bg);padding:12px 0}
+textarea{resize:none;height:46px}
+.hint{font-size:12px;color:var(--muted);text-align:center;padding-bottom:8px}
+</style>
+</head>
+<body>
+<header>
+  <h1>AI News Assistant<small>RAG over your ingested news &middot; FastAPI + Spring Boot</small></h1>
+  <div id="userbox"><span id="who"></span><button class="ghost" id="logout">Logout</button></div>
+</header>
+
+<main>
+  <section class="card" id="auth">
+    <h2>Welcome</h2>
+    <p>Log in or create an account to ask questions.</p>
+    <label for="email">Email</label>
+    <input type="email" id="email" autocomplete="username">
+    <label for="password">Password (min 8 characters)</label>
+    <input type="password" id="password" autocomplete="current-password">
+    <div class="row">
+      <button class="primary" id="login">Login</button>
+      <button class="secondary" id="register">Register</button>
+    </div>
+    <div id="msg"></div>
+  </section>
+
+  <section id="chat">
+    <div id="log">
+      <div class="bubble bot">Ask me anything about the news articles that have been ingested. I only answer from that data, not from the internet.</div>
+    </div>
+    <form id="askForm">
+      <textarea id="query" placeholder="e.g. Why did RBI hold the rates?" required></textarea>
+      <button class="primary" id="send" type="submit">Ask</button>
+    </form>
+    <div class="hint">Enter to send &middot; Shift+Enter for a new line</div>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let token = localStorage.getItem("token");
+let userEmail = localStorage.getItem("email");
+
+function setMsg(t){ $("msg").textContent = t || ""; }
+
+function showApp(){
+  const loggedIn = !!token;
+  $("auth").style.display = loggedIn ? "none" : "block";
+  $("chat").style.display = loggedIn ? "flex" : "none";
+  $("userbox").style.display = loggedIn ? "flex" : "none";
+  $("who").textContent = userEmail || "";
+}
+
+async function authCall(path){
+  setMsg("");
+  const email = $("email").value.trim(), password = $("password").value;
+  if(!email || !password){ setMsg("Enter email and password."); return; }
+  try{
+    const res = await fetch("/api/auth/" + path, {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({email, password})
+    });
+    const data = await res.json().catch(() => ({}));
+    if(!res.ok){ setMsg(data.message || ("Request failed (" + res.status + ")")); return; }
+    token = data.token; userEmail = data.email;
+    localStorage.setItem("token", token); localStorage.setItem("email", userEmail);
+    $("password").value = "";
+    showApp();
+  }catch(e){
+    setMsg("Cannot reach Core API. Open this page at http://localhost:8080/ and check that the containers are running.");
+  }
+}
+
+function logout(){
+  token = null; userEmail = null;
+  localStorage.removeItem("token"); localStorage.removeItem("email");
+  showApp();
+}
+
+function addBubble(cls, text){
+  const d = document.createElement("div");
+  d.className = "bubble " + cls;
+  d.textContent = text;
+  $("log").appendChild(d);
+  d.scrollIntoView({behavior:"smooth", block:"end"});
+  return d;
+}
+
+function renderAnswer(el, data){
+  el.textContent = data.answer || "(empty answer)";
+  if(data.sources && data.sources.length){
+    const s = document.createElement("div"); s.className = "src";
+    s.append("Sources: ");
+    data.sources.forEach((u, i) => {
+      const a = document.createElement("a");
+      a.href = u; a.textContent = u; a.target = "_blank"; a.rel = "noopener";
+      s.append(a); if(i < data.sources.length - 1) s.append(", ");
+    });
+    el.appendChild(s);
+  }
+  if(data.retrieved_chunks && data.retrieved_chunks.length){
+    const det = document.createElement("details");
+    const sum = document.createElement("summary");
+    sum.textContent = "Retrieved context (" + data.retrieved_chunks.length + ")";
+    det.appendChild(sum);
+    data.retrieved_chunks.forEach(c => {
+      const ch = document.createElement("div"); ch.className = "chunk";
+      ch.textContent = (c.title || "Untitled") + " (score " + Number(c.score).toFixed(2) + "): " + (c.content_chunk || "");
+      det.appendChild(ch);
+    });
+    el.appendChild(det);
+  }
+}
+
+async function ask(q){
+  addBubble("user", q);
+  const pending = addBubble("bot", "Thinking...");
+  $("send").disabled = true;
+  try{
+    const res = await fetch("/api/news/ask", {
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":"Bearer " + token},
+      body: JSON.stringify({query:q})
+    });
+    if(res.status === 401 || (res.status === 403 && !res.headers.get("content-type")?.includes("json"))){
+      pending.remove(); addBubble("err", "Session expired. Please log in again."); logout(); return;
+    }
+    const data = await res.json().catch(() => ({}));
+    if(res.status === 403){
+      pending.className = "bubble err";
+      pending.textContent = "Premium required. This account is not Premium yet. For local testing, set isPremium=true for this user in MongoDB.";
+    } else if(!res.ok){
+      pending.className = "bubble err";
+      pending.textContent = data.message || ("Request failed (" + res.status + ")");
+    } else {
+      renderAnswer(pending, data);
+    }
+  }catch(e){
+    pending.className = "bubble err";
+    pending.textContent = "Cannot reach Core API. Check that the containers are running.";
+  }finally{
+    $("send").disabled = false;
+  }
+}
+
+$("login").onclick = () => authCall("login");
+$("register").onclick = () => authCall("register");
+$("logout").onclick = logout;
+$("password").addEventListener("keydown", e => { if(e.key === "Enter") authCall("login"); });
+$("askForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const q = $("query").value.trim();
+  if(!q) return;
+  $("query").value = "";
+  ask(q);
+});
+$("query").addEventListener("keydown", e => {
+  if(e.key === "Enter" && !e.shiftKey){ e.preventDefault(); $("askForm").requestSubmit(); }
+});
+showApp();
+</script>
+</body>
+</html>
